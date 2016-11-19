@@ -37,6 +37,7 @@ import static de.robv.android.xposed.XposedBridge.hookAllConstructors;
 import static de.robv.android.xposed.XposedBridge.hookAllMethods;
 import static de.robv.android.xposed.XposedHelpers.closeSilently;
 import static de.robv.android.xposed.XposedHelpers.findAndHookMethod;
+import static de.robv.android.xposed.XposedHelpers.findClass;
 import static de.robv.android.xposed.XposedHelpers.getBooleanField;
 import static de.robv.android.xposed.XposedHelpers.getObjectField;
 import static de.robv.android.xposed.XposedHelpers.setObjectField;
@@ -61,6 +62,25 @@ import static de.robv.android.xposed.XposedHelpers.setStaticObjectField;
 	 * Hook some methods which we want to create an easier interface for developers.
 	 */
 	/*package*/ static void initForZygote() throws Throwable {
+		// TODO Limit this to ROMs that need it, at least below Nougat.
+		if (Build.VERSION.SDK_INT >= 21) {
+			XC_MethodHook callback = new XC_MethodHook() {
+				@Override
+				protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+					XposedBridge.closeFilesBeforeForkNative();
+				}
+
+				@Override
+				protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+					XposedBridge.reopenFilesAfterForkNative();
+				}
+			};
+
+			Class<?> zygote = findClass("com.android.internal.os.Zygote", null);
+			hookAllMethods(zygote, "nativeForkAndSpecialize", callback);
+			hookAllMethods(zygote, "nativeForkSystemServer", callback);
+		}
+
 		final HashSet<String> loadedPackagesInProcess = new HashSet<>(1);
 
 		// normal process initialization (for new Activity, Service, BroadcastReceiver etc.)
